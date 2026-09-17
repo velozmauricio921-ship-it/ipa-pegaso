@@ -213,134 +213,241 @@ private struct DashboardView: View {
     @Binding var wallpapersEnabled: Bool
     let wallpapersSupported: Bool
 
+    private let bgDark = Color(red: 0.02, green: 0.09, blue: 0.17)
+    private let bgMid = Color(red: 0.04, green: 0.18, blue: 0.30)
+    private let panel = Color(red: 0.10, green: 0.26, blue: 0.37)
+    private let panelAlt = Color(red: 0.08, green: 0.20, blue: 0.31)
+    private let accent = Color(red: 0.45, green: 0.92, blue: 1.00)
+    private let accentSoft = Color(red: 0.83, green: 0.96, blue: 1.00)
+    private let stroke = Color(red: 0.42, green: 0.88, blue: 1.00).opacity(0.9)
+
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottom) {
-                Color(uiColor: .systemBackground).ignoresSafeArea()
+            ZStack {
+                LinearGradient(
+                    colors: [bgDark, bgMid],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
-                        topBar
-                        deviceCard
-                        infoKeyToggle
-                        // Info Key panel moved to its own view (WallpaperLabView / Info Key tab)
+                        headerPanel
+                        developerPanel
+                        contactPanel
+                        deviceStatusPanel
                     }
                     .padding(.horizontal, 18)
-                    .padding(.top, 12)
-                    .padding(.bottom, 110)
+                    .padding(.top, 10)
+                    .padding(.bottom, 120)
                 }
             }
             .navigationBarHidden(true)
-            .toolbarBackground(.black, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showLogs) { LogView() }
         }
     }
 
-    private var topBar: some View {
-        HStack {
-            Spacer()
-            HStack(spacing: 12) {
-                Button { showLogs = true } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(AppTheme.accent)
-                        .padding(8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(AppTheme.accent, lineWidth: 1.5)
-                        )
-                }
-                .buttonStyle(.plain)
+    private var headerPanel: some View {
+        ZStack(alignment: .trailing) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("BAIJ STORE")
+                    .font(.system(size: 31, weight: .heavy, design: .rounded))
+                    .foregroundStyle(accentSoft)
+                    .tracking(-1.2)
+                    .textCase(.uppercase)
 
-                Button { showSettings = true } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(8)
-                        .background(
-                            Circle()
-                                .fill(Color(white: 0.22))
-                        )
-                }
-                .buttonStyle(.plain)
+                Text("PATCH CONTROL CENTER")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(accent)
+                    .tracking(1.8)
+                    .textCase(.uppercase)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 22)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color(red: 0.14, green: 0.28, blue: 0.41))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(stroke, lineWidth: 2)
+                    )
+            )
+
+            Circle()
+                .fill(accent)
+                .frame(width: 42, height: 42)
+                .padding(.trailing, 18)
+                .overlay(
+                    Text("B")
+                        .font(.system(size: 21, weight: .heavy))
+                        .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.20))
+                )
         }
     }
 
-    private var infoKeyToggle: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private var developerPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Image(systemName: "key.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(AppTheme.accent)
+                Circle()
+                    .fill(Color(white: 0.2))
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.white)
+                    )
 
-                Text("Info Key")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
+                Text("DEVELOPER INFO")
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(accentSoft)
+                    .tracking(0.9)
+                    .textCase(.uppercase)
+            }
 
+            Text("VELOZxIOS")
+                .font(.system(size: 29, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.leading, 48)
+
+            Divider().background(Color.white.opacity(0.14))
+
+            HStack {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(accent)
+
+                Text("DEVELOPER INFO • DESIGN 1")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+
+            HStack {
+                Text("BUILD")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(accentSoft)
+                    .tracking(1.6)
+                    .textCase(.uppercase)
                 Spacer()
-
-                Toggle("", isOn: $wallpapersEnabled)
-                    .labelsHidden()
-                    .toggleStyle(SwitchToggleStyle(tint: AppTheme.accent))
+                Text("1.2")
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundStyle(.white)
             }
-
-            Text("Info Key disabled by default.")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 36)
         }
-        .padding(14)
+        .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(white: 0.14))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color(white: 0.32), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(panel)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(stroke, lineWidth: 1.8)
+                )
         )
     }
 
-    
-
-    private var deviceCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            row(label: language.text("dashboard.hardware_model"), value: AppInfo.displayMachineName)
-            row(label: language.text("settings.ios_version"), value: "\(AppInfo.osVersion) (\(AppInfo.osBuild))")
-            row(label: language.text("settings.compatibility"), value: language.text(appState.isSupported ? "settings.supported" : "settings.unsupported"), valueColor: appState.isSupported ? .green : .red)
+    private var contactPanel: some View {
+        VStack(spacing: 12) {
+            contactButton(title: "Discord", subtitle: "Join my Discord", icon: "bubble.left.fill", tint: accent, url: "https://discord.gg/aBQyPTbpgc")
+            contactButton(title: "WhatsApp", subtitle: "Contact me", icon: "message.fill", tint: accent, url: "https://wa.me/584124788825")
+            contactButton(title: "VELOZxIOS", subtitle: "Developer", icon: "person.fill", tint: accent, url: "https://t.me/VELOZxIOS")
         }
-        .padding(.vertical, 8)
+    }
+
+    private func contactButton(title: String, subtitle: String, icon: String, tint: Color, url: String) -> some View {
+        Group {
+            if let destination = URL(string: url) {
+                Link(destination: destination) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle().fill(Color(white: 0.15))
+                                .frame(width: 30, height: 30)
+                            Image(systemName: icon)
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(tint)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(title)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(.white)
+                            Text(subtitle)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.72))
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(panelAlt)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(stroke, lineWidth: 1.1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var deviceStatusPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("DEVICE STATUS")
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(accentSoft)
+                    .tracking(0.8)
+                    .textCase(.uppercase)
+            }
+            .padding(.top, 4)
+
+            VStack(spacing: 0) {
+                statusRow(label: "iOS", value: AppInfo.osVersion)
+                statusRow(label: "Device", value: AppInfo.displayMachineName)
+                statusRow(
+                    label: "Support",
+                    value: appState.isSupported ? "SUPPORTED" : "UNSUPPORTED",
+                    valueColor: appState.isSupported ? .green : .orange
+                )
+            }
+        }
+        .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(white: 0.14))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color(white: 0.32), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(panelAlt)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(stroke, lineWidth: 1.5)
+                )
         )
     }
 
-    private func row(label: String, value: String, valueColor: Color = .white) -> some View {
+    private func statusRow(label: String, value: String, valueColor: Color = .white) -> some View {
         HStack {
             Text(label)
-                .font(.system(size: 20, weight: .regular))
+                .font(.system(size: 18, weight: .regular))
                 .foregroundStyle(.white)
             Spacer()
             Text(value)
-                .font(.system(size: 20, weight: .regular, design: .default))
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundStyle(valueColor)
-                .monospaced()
+                .textCase(.uppercase)
         }
-        .padding(.horizontal, 18)
         .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
         .overlay(
-            Divider()
-                .background(Color(white: 0.23)),
+            Divider().background(Color.white.opacity(0.12)),
             alignment: .bottom
         )
     }
-
-    // Info Key UI moved into WallpaperLabView (Info Key tab). Removed from DashboardView.
 }

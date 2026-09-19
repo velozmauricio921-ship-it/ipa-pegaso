@@ -253,7 +253,7 @@ private struct DashboardView: View {
     private var headerPanel: some View {
         ZStack(alignment: .trailing) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("GUSZ XITS")
+                Text("PEGASO XIT")
                     .font(.system(size: 31, weight: .heavy, design: .rounded))
                     .foregroundStyle(accentSoft)
                     .tracking(-1.2)

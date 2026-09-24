@@ -1,5 +1,8 @@
-
 name: iOS unsigned build
+
+permissions:
+  contents: read
+  actions: write
 
 on:
   push:
@@ -26,12 +29,17 @@ jobs:
           git status --porcelain || true
           echo "--- REMOTES ---"
           git remote -v || true
-          echo "Workspace snapshot: listing top-level files"
+          echo "--- WORKSPACE LISTING ---"
           pwd || true
           ls -la || true
-          echo "--- LAST COMMIT INFO ---"
+          echo "--- LAST COMMIT ---"
           git --no-pager log -n 1 --pretty=fuller || true
-          echo "(Sensitive file contents not printed to logs)"
+          echo "--- FILE SNAPSHOT: LicenseGateView.swift ---"
+          if [ -f "ThreeOneOSFive/views/LicenseGateView.swift" ]; then
+            sed -n '1,200p' ThreeOneOSFive/views/LicenseGateView.swift || true
+          else
+            echo "File not found: ThreeOneOSFive/views/LicenseGateView.swift"
+          fi
 
       - name: Show Xcode project schemes (debug)
         run: |
@@ -89,38 +97,41 @@ jobs:
           DISPLAY_NAME: ${{ secrets.APP_DISPLAY_NAME }}
         run: |
           set -e
-          APP_PATH=$(find Build/DerivedData -name "3105.app" -type d | head -n 1)
+          APP_PATH=$(find Build/DerivedData -path "*/Build/Products/Release-iphoneos/*.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            APP_PATH=$(find Build/DerivedData -name "*.app" -type d | head -n 1)
+          fi
+
           echo "App path: $APP_PATH"
-          if [ -z "$APP_PATH" ]; then
-            echo "No app found to inject config"; exit 0
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "::error::No .app bundle was generated. Check xcodebuild logs."
+            exit 1
           fi
 
           PLIST="$APP_PATH/Info.plist"
           echo "Modifying $PLIST"
 
-          # Helper to set or add a string key using plutil (safer), with PlistBuddy fallback
-          set_plist() {
-            KEY="$1"; VALUE="$2"
-            if [ -z "$VALUE" ]; then return; fi
-            # Try plutil -replace first (handles quoting robustly)
-            /usr/bin/plutil -replace "$KEY" -string "$VALUE" "$PLIST" 2>/dev/null || {
-              # If plutil failed (e.g., key missing), try PlistBuddy add/set with escaped value
-              esc_value="$VALUE"
-              esc_value="${esc_value//\\/\\\\}"
-              esc_value="${esc_value//\"/\\\"}"
-              esc_value="${esc_value//$'\n'/\\n}"
-              esc_value="${esc_value//$'\r'/\\r}"
-              /usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST" >/dev/null 2>&1 && \
-                /usr/libexec/PlistBuddy -c "Set :$KEY \"$esc_value\"" "$PLIST" || \
-                /usr/libexec/PlistBuddy -c "Add :$KEY string \"$esc_value\"" "$PLIST"
-            }
+          python3 - "$PLIST" "$KEYAUTH_APP_NAME" "$KEYAUTH_OWNER_ID" "$KEYAUTH_SECRET" "$KEYAUTH_BASEURL" "$DISPLAY_NAME" <<'PY'
+          import os, plistlib, sys
+          plist_path = sys.argv[1]
+          pairs = {
+              "KeyAuthAppName": sys.argv[2],
+              "KeyAuthOwnerID": sys.argv[3],
+              "KeyAuthAppSecret": sys.argv[4],
+              "KeyAuthBaseURL": sys.argv[5],
+              "CFBundleDisplayName": sys.argv[6],
           }
 
-          set_plist "KeyAuthAppName" "$KEYAUTH_APP_NAME"
-          set_plist "KeyAuthOwnerID" "$KEYAUTH_OWNER_ID"
-          set_plist "KeyAuthAppSecret" "$KEYAUTH_SECRET"
-          set_plist "KeyAuthBaseURL" "$KEYAUTH_BASEURL"
-          set_plist "CFBundleDisplayName" "$DISPLAY_NAME"
+          with open(plist_path, "rb") as f:
+              plist = plistlib.load(f)
+
+          for key, value in pairs.items():
+              if value is not None and value != "":
+                  plist[key] = value
+
+          with open(plist_path, "wb") as f:
+              plistlib.dump(plist, f)
+          PY
 
           echo "Injected KeyAuth config into $PLIST"
 
@@ -133,15 +144,17 @@ jobs:
       - name: Package unsigned app
         run: |
           set -e
-          APP_PATH=$(find Build/DerivedData -name "3105.app" -type d | head -n 1)
+          APP_PATH=$(find Build/DerivedData -path "*/Build/Products/Release-iphoneos/*.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            APP_PATH=$(find Build/DerivedData -name "*.app" -type d | head -n 1)
+          fi
           echo "App path: $APP_PATH"
 
-          if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No se encontró 3105.app"
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: No se encontró ningún .app en Build/DerivedData"
             exit 1
           fi
 
-          # If repository contains Preloaded .3105 packages, copy them into the built app bundle
           REPO_PRELOADED_DIR="ThreeOneOSFive/Resources/Preloaded"
           if [ -d "$REPO_PRELOADED_DIR" ]; then
             echo "Found repo Preloaded dir: $REPO_PRELOADED_DIR — copying into app bundle"
@@ -151,10 +164,15 @@ jobs:
             echo "No repo Preloaded dir found at $REPO_PRELOADED_DIR"
           fi
 
-          # Dump Info.plist and search for common strings to help debug build contents
-          echo "(Info.plist not printed for security)"
-          echo "Searching binary/resources for non-sensitive debug keywords..."
-          strings "$APP_PATH/3105" 2>/dev/null | grep -i "nubank\|baijstore\|Digite\|Introduce" || true
+          echo "--- Info.plist contents ---"
+          if [ -f "$APP_PATH/Info.plist" ]; then
+            plutil -p "$APP_PATH/Info.plist" || true
+          fi
+          echo "--- Searching binary/resources for keywords ---"
+          APP_BINARY=$(find "$APP_PATH" -maxdepth 1 -type f | head -n 1)
+          if [ -n "$APP_BINARY" ]; then
+            strings "$APP_BINARY" 2>/dev/null | grep -i "nubank\|baijstore\|Digite\|Introduce" || true
+          fi
 
           rm -rf Payload ios-unsigned-test.ipa
           mkdir -p Payload
@@ -166,3 +184,6 @@ jobs:
         with:
           name: ios-unsigned-build-${{ github.sha }}
           path: ./ios-unsigned-test.ipa
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1

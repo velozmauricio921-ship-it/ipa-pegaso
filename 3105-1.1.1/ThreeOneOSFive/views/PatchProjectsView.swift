@@ -99,7 +99,7 @@ struct PatchProjectsView: View {
                 VStack(spacing: 12) {
                     ZStack(alignment: .trailing) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("BAIJ STORE")
+                            Text("PEGASO XIT")
                                 .font(.system(size: 30, weight: .heavy, design: .rounded))
                                 .foregroundStyle(Color(red: 0.83, green: 0.96, blue: 1.00))
                                 .tracking(-1.2)

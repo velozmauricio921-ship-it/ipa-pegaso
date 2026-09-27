@@ -10,16 +10,14 @@ private enum PatchPackagePickerPolicy {
 
 struct PatchProjectsView: View {
     @Environment(\.appLanguage) private var language
-    @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var draftCoordinator: PatchDraftCoordinator
     @StateObject private var store = PatchProjectStore()
     @State private var showCreate = false
     @State private var showImporter = false
     @State private var searchText = ""
     @State private var selectedID: UUID?
-    @State private var isSelectedPatchActive = false
+    @State private var selectedPatchIsActive = false
     @State private var isWorkingAction = false
-    @State private var showToggleApplyConfirmation = false
     @State private var receiptRefresh = UUID()
     @State private var actionAlert: PatchStoreAlert?
     @State private var restoreFailureCounts: [UUID: Int] = [:]
@@ -76,10 +74,10 @@ struct PatchProjectsView: View {
         guard let selected = selectedID,
               let item = store.items.first(where: { $0.id == selected }) else {
             selectedID = nil
-            isSelectedPatchActive = false
+                        selectedPatchIsActive = false
             return
         }
-        isSelectedPatchActive = DevicePatchService.latestReceipt(projectID: item.id) != nil
+                selectedPatchIsActive = DevicePatchService.latestReceipt(projectID: item.id) != nil
     }
 
     init() {
@@ -246,9 +244,9 @@ struct PatchProjectsView: View {
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
 
-                            Text(isSelectedPatchActive ? "ACTIVE" : "INACTIVE")
+                            Text(selectedPatchIsActive ? "ACTIVE" : "INACTIVE")
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                .foregroundStyle(isSelectedPatchActive ? AppTheme.accent : .white.opacity(0.7))
+                                .foregroundStyle(selectedPatchIsActive ? AppTheme.accent : .white.opacity(0.7))
                                 .textCase(.uppercase)
                         }
 
@@ -274,7 +272,7 @@ struct PatchProjectsView: View {
                             }
                         } else {
                             Toggle("", isOn: Binding(
-                                get: { isSelectedPatchActive },
+                                get: { selectedPatchIsActive },
                                 set: { newValue in
                                     handleToggleChange(newValue, for: selectedItem)
                                 }
@@ -298,25 +296,6 @@ struct PatchProjectsView: View {
                 }
                 .id(receiptRefresh)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                .confirmationDialog(
-                    language.text("patch.apply_confirm_title"),
-                    isPresented: $showToggleApplyConfirmation,
-                    titleVisibility: .visible
-                ) {
-                    Button(language.text("patch.apply")) {
-                        applySelectedPatch(selectedItem)
-                    }
-                    Button(language.text("common.cancel"), role: .cancel) {}
-                } message: {
-                    Text(language.text("patch.apply_confirm_message"))
-                }
-                .alert(item: $actionAlert) { alert in
-                    Alert(
-                        title: Text(language.text(alert.titleKey)),
-                        message: Text(alert.message(language: language)),
-                        dismissButton: .default(Text(language.text("common.ok")))
-                    )
-                }
             }
         } // NavigationStack end
         .navigationTitle(language.text("patch.title"))
@@ -396,86 +375,44 @@ struct PatchProjectsView: View {
         }
     }
 
-    private func applySelectedPatch(_ item: PatchLibraryItem) {
-        guard !isWorkingAction else { return }
-        guard appState.exploitStatus.isSuccess else {
-            actionAlert = PatchStoreAlert(
-                titleKey: "common.failed",
-                messageKey: "patch.error.exploit_not_ready",
-                messageArgument: appState.exploitStatus.displayText(language: language)
-            )
-            return
-        }
-
-        isWorkingAction = true
-        Task.detached(priority: .userInitiated) {
-            do {
-                let project: PatchProject
-                if item.summary.schemaVersion >= 2 {
-                    project = try PatchProjectLibrary.synchronizeWorkspace(item: item)
-                } else if let storedProject = item.project {
-                    project = storedProject
-                } else {
-                    throw PatchPackageError.invalidProject
-                }
-                _ = try await DevicePatchService.apply(project: project)
-                await MainActor.run {
-                    AudioFeedback.play(isEnabled: true)
-                    store.reload()
-                    refreshSelectionState()
-                    actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
-                }
-            } catch let error as PatchPackageError {
-                await MainActor.run {
-                    actionAlert = PatchStoreAlert(
-                        titleKey: "common.failed",
-                        messageKey: error.localizationKey,
-                        messageArgument: error.localizationArgument
-                    )
-                }
-            } catch {
-                await MainActor.run {
-                    actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.apply")
-                }
-            }
-            await MainActor.run {
-                isWorkingAction = false
-                receiptRefresh = UUID()
-                refreshSelectionState()
-            }
-        }
-    }
-
     private func handleToggleChange(_ shouldApply: Bool, for item: PatchLibraryItem) {
         guard !isWorkingAction else { return }
-
-        if shouldApply {
-            guard appState.exploitStatus.isSuccess else {
-                actionAlert = PatchStoreAlert(
-                    titleKey: "common.failed",
-                    messageKey: "patch.error.exploit_not_ready",
-                    messageArgument: appState.exploitStatus.displayText(language: language)
-                )
-                return
-            }
-            showToggleApplyConfirmation = true
-            return
-        }
-
         isWorkingAction = true
+
         Task.detached(priority: .userInitiated) {
             do {
-                if let receipt = DevicePatchService.latestReceipt(projectID: item.id) {
+                if shouldApply {
+                    let project: PatchProject
+                    if item.summary.schemaVersion >= 2 {
+                        project = try PatchProjectLibrary.synchronizeWorkspace(item: item)
+                    } else if let storedProject = item.project {
+                        project = storedProject
+                    } else {
+                        throw PatchPackageError.invalidProject
+                    }
+
+                    _ = try await DevicePatchService.apply(project: project)
+                    await MainActor.run {
+                        AudioFeedback.play(isEnabled: true)
+                        actionAlert = PatchStoreAlert(
+                            titleKey: "common.done",
+                            messageKey: "patch.applied_message"
+                        )
+                    }
+                } else if let receipt = DevicePatchService.latestReceipt(projectID: item.id) {
                     try DevicePatchService.restore(receipt: receipt)
                     await MainActor.run {
                         AudioFeedback.play(isEnabled: false)
-                        store.reload()
                         actionAlert = PatchStoreAlert(
                             titleKey: "common.done",
                             messageKey: "patch.restored_message"
                         )
                     }
                 }
+
+                await MainActor.run {
+                    store.reload()
+                }
             } catch let error as PatchPackageError {
                 await MainActor.run {
                     actionAlert = PatchStoreAlert(
@@ -488,7 +425,7 @@ struct PatchProjectsView: View {
                 await MainActor.run {
                     actionAlert = PatchStoreAlert(
                         titleKey: "common.failed",
-                        messageKey: "patch.error.restore"
+                        messageKey: shouldApply ? "patch.error.apply" : "patch.error.restore"
                     )
                 }
             }
@@ -716,7 +653,6 @@ private struct PatchUnlockView: View {
 
 private struct PatchProjectDetailView: View {
     @Environment(\.appLanguage) private var language
-    @EnvironmentObject private var appState: AppState
     @ObservedObject var store: PatchProjectStore
     let projectID: UUID
     @State private var showEditor = false
@@ -941,14 +877,6 @@ private struct PatchProjectDetailView: View {
 
     private func apply() {
         guard let item, let baseProject = item.project else { return }
-        guard appState.exploitStatus.isSuccess else {
-            actionAlert = PatchStoreAlert(
-                titleKey: "common.failed",
-                messageKey: "patch.error.exploit_not_ready",
-                messageArgument: appState.exploitStatus.displayText(language: language)
-            )
-            return
-        }
         isWorking = true
         Task.detached(priority: .userInitiated) {
             do {

@@ -196,6 +196,7 @@
 "patch.error.app_unavailable" = "Bundle app %@ chưa được cài hoặc không thể mở. Patch chưa thay đổi file nào.";
 "patch.error.symlink" = "Đường dẫn patch không được đi qua liên kết tượng trưng.";
 "patch.error.apply" = "Không thể áp dụng patch. Mọi file đã ghi trước đó đã được rollback.";
+"patch.error.exploit_not_ready" = "Không thể kích hoạt patch vì quyền truy cập hệ thống cần thiết chưa sẵn sàng: %@.";
 "patch.error.restore" = "Không thể khôi phục file gốc an toàn. App không ghi đè đích chưa được xác minh.";
 "patch.error.invalid_import_link" = "Liên kết nhập patch không hợp lệ. Hãy dùng liên kết HTTPS an toàn tới gói .3105.";
 "patch.error.remote_import" = "Không thể tải patch một cách an toàn. Hãy kiểm tra liên kết và thử lại.";

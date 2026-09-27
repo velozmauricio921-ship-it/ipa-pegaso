@@ -17,6 +17,7 @@ struct PatchProjectsView: View {
     @State private var showImporter = false
     @State private var searchText = ""
     @State private var selectedID: UUID?
+    @State private var isSelectedPatchActive = false
     @State private var isWorkingAction = false
     @State private var showToggleApplyConfirmation = false
     @State private var receiptRefresh = UUID()
@@ -75,9 +76,10 @@ struct PatchProjectsView: View {
         guard let selected = selectedID,
               let item = store.items.first(where: { $0.id == selected }) else {
             selectedID = nil
+            isSelectedPatchActive = false
             return
         }
-        _ = DevicePatchService.latestReceipt(projectID: item.id)
+        isSelectedPatchActive = DevicePatchService.latestReceipt(projectID: item.id) != nil
     }
 
     init() {
@@ -234,7 +236,6 @@ struct PatchProjectsView: View {
             }
             // Bottom action bar for selected feature (inside NavigationStack content)
             if let sel = selectedID, let selectedItem = store.items.first(where: { $0.id == sel }) {
-                let selectedHasReceipt = DevicePatchService.latestReceipt(projectID: selectedItem.id) != nil
                 VStack(spacing: 0) {
                     Divider()
                     HStack(alignment: .center, spacing: 12) {
@@ -245,9 +246,9 @@ struct PatchProjectsView: View {
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
 
-                            Text(selectedHasReceipt ? "ACTIVE" : "INACTIVE")
+                            Text(isSelectedPatchActive ? "ACTIVE" : "INACTIVE")
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                .foregroundStyle(selectedHasReceipt ? AppTheme.accent : .white.opacity(0.7))
+                                .foregroundStyle(isSelectedPatchActive ? AppTheme.accent : .white.opacity(0.7))
                                 .textCase(.uppercase)
                         }
 
@@ -273,7 +274,7 @@ struct PatchProjectsView: View {
                             }
                         } else {
                             Toggle("", isOn: Binding(
-                                get: { selectedHasReceipt },
+                                get: { isSelectedPatchActive },
                                 set: { newValue in
                                     guard !isWorkingAction else { return }
                                     if newValue {

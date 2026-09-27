@@ -18,6 +18,7 @@ struct PatchProjectsView: View {
     @State private var searchText = ""
     @State private var selectedID: UUID?
     @State private var isWorkingAction = false
+    @State private var showToggleApplyConfirmation = false
     @State private var receiptRefresh = UUID()
     @State private var actionAlert: PatchStoreAlert?
     @State private var restoreFailureCounts: [UUID: Int] = [:]
@@ -284,32 +285,7 @@ struct PatchProjectsView: View {
                                             )
                                             return
                                         }
-                                        Task.detached(priority: .userInitiated) {
-                                            await MainActor.run { isWorkingAction = true }
-                                            do {
-                                                let project = selectedItem.summary.schemaVersion >= 2 ? try PatchProjectLibrary.synchronizeWorkspace(item: selectedItem) : (selectedItem.project!)
-                                                _ = try await DevicePatchService.apply(project: project)
-                                                await MainActor.run {
-                                                    AudioFeedback.play(isEnabled: true)
-                                                    store.reload()
-                                                    refreshSelectionState()
-                                                    actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
-                                                }
-                                            } catch let error as PatchPackageError {
-                                                await MainActor.run {
-                                                    actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: error.localizationKey, messageArgument: error.localizationArgument)
-                                                }
-                                            } catch {
-                                                await MainActor.run {
-                                                    actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.apply")
-                                                }
-                                            }
-                                            await MainActor.run {
-                                                isWorkingAction = false
-                                                receiptRefresh = UUID()
-                                                refreshSelectionState()
-                                            }
-                                        }
+                                        showToggleApplyConfirmation = true
                                     } else {
                                         Task.detached(priority: .userInitiated) {
                                             await MainActor.run { isWorkingAction = true }
@@ -360,6 +336,25 @@ struct PatchProjectsView: View {
                 }
                 .id(receiptRefresh)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+                .confirmationDialog(
+                    language.text("patch.apply_confirm_title"),
+                    isPresented: $showToggleApplyConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button(language.text("patch.apply")) {
+                        applySelectedPatch(selectedItem)
+                    }
+                    Button(language.text("common.cancel"), role: .cancel) {}
+                } message: {
+                    Text(language.text("patch.apply_confirm_message"))
+                }
+                .alert(item: $actionAlert) { alert in
+                    Alert(
+                        title: Text(language.text(alert.titleKey)),
+                        message: Text(alert.message(language: language)),
+                        dismissButton: .default(Text(language.text("common.ok")))
+                    )
+                }
             }
         } // NavigationStack end
         .navigationTitle(language.text("patch.title"))
@@ -436,6 +431,56 @@ struct PatchProjectsView: View {
         .onAppear(perform: consumeExternalImport)
         .onChange(of: draftCoordinator.importRequest?.id) { _ in
             consumeExternalImport()
+        }
+    }
+
+    private func applySelectedPatch(_ item: PatchLibraryItem) {
+        guard !isWorkingAction else { return }
+        guard appState.exploitStatus.isSuccess else {
+            actionAlert = PatchStoreAlert(
+                titleKey: "common.failed",
+                messageKey: "patch.error.exploit_not_ready",
+                messageArgument: appState.exploitStatus.displayText(language: language)
+            )
+            return
+        }
+
+        isWorkingAction = true
+        Task.detached(priority: .userInitiated) {
+            do {
+                let project: PatchProject
+                if item.summary.schemaVersion >= 2 {
+                    project = try PatchProjectLibrary.synchronizeWorkspace(item: item)
+                } else if let storedProject = item.project {
+                    project = storedProject
+                } else {
+                    throw PatchPackageError.invalidProject
+                }
+                _ = try await DevicePatchService.apply(project: project)
+                await MainActor.run {
+                    AudioFeedback.play(isEnabled: true)
+                    store.reload()
+                    refreshSelectionState()
+                    actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
+                }
+            } catch let error as PatchPackageError {
+                await MainActor.run {
+                    actionAlert = PatchStoreAlert(
+                        titleKey: "common.failed",
+                        messageKey: error.localizationKey,
+                        messageArgument: error.localizationArgument
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.apply")
+                }
+            }
+            await MainActor.run {
+                isWorkingAction = false
+                receiptRefresh = UUID()
+                refreshSelectionState()
+            }
         }
     }
 

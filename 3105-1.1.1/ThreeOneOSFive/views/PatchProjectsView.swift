@@ -10,6 +10,7 @@ private enum PatchPackagePickerPolicy {
 
 struct PatchProjectsView: View {
     @Environment(\.appLanguage) private var language
+    @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var draftCoordinator: PatchDraftCoordinator
     @StateObject private var store = PatchProjectStore()
     @State private var showCreate = false
@@ -99,7 +100,7 @@ struct PatchProjectsView: View {
                 VStack(spacing: 12) {
                     ZStack(alignment: .trailing) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("PEGASO XIT")
+                            Text("BAIJ STORE")
                                 .font(.system(size: 30, weight: .heavy, design: .rounded))
                                 .foregroundStyle(Color(red: 0.83, green: 0.96, blue: 1.00))
                                 .tracking(-1.2)
@@ -275,6 +276,14 @@ struct PatchProjectsView: View {
                                 set: { newValue in
                                     guard !isWorkingAction else { return }
                                     if newValue {
+                                        guard appState.exploitStatus.isSuccess else {
+                                            actionAlert = PatchStoreAlert(
+                                                titleKey: "common.failed",
+                                                messageKey: "patch.error.exploit_not_ready",
+                                                messageArgument: appState.exploitStatus.displayText(language: language)
+                                            )
+                                            return
+                                        }
                                         Task.detached(priority: .userInitiated) {
                                             await MainActor.run { isWorkingAction = true }
                                             do {
@@ -645,6 +654,7 @@ private struct PatchUnlockView: View {
 
 private struct PatchProjectDetailView: View {
     @Environment(\.appLanguage) private var language
+    @EnvironmentObject private var appState: AppState
     @ObservedObject var store: PatchProjectStore
     let projectID: UUID
     @State private var showEditor = false
@@ -869,6 +879,14 @@ private struct PatchProjectDetailView: View {
 
     private func apply() {
         guard let item, let baseProject = item.project else { return }
+        guard appState.exploitStatus.isSuccess else {
+            actionAlert = PatchStoreAlert(
+                titleKey: "common.failed",
+                messageKey: "patch.error.exploit_not_ready",
+                messageArgument: appState.exploitStatus.displayText(language: language)
+            )
+            return
+        }
         isWorking = true
         Task.detached(priority: .userInitiated) {
             do {
